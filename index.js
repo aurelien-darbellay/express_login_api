@@ -1,3 +1,5 @@
+import fs from "fs";
+import https from "https";
 import express from "express";
 import { PORT, SECRET_KEY_JWT } from "./config.js";
 import { UserRepository } from "./use-repository.js";
@@ -8,7 +10,17 @@ import cors from "cors";
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors());
+app.use(
+  cors({
+    origin: "https://localhost:5173",
+    credentials: true,
+  })
+);
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Credentials", "true");
+  next();
+});
 
 //Authentication
 app.use(async (req, res, next) => {
@@ -55,8 +67,9 @@ app.post("/login", async (req, res) => {
     res
       .cookie("access_token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        secure: true,
+        sameSite: "none",
+        path: "/",
       })
       .send({ publicUser });
   } catch (error) {
@@ -74,8 +87,15 @@ app.post("/register", async (req, res) => {
   }
 });
 app.post("/logout", (req, res) => {
-  res.clearCookie("access_token");
-  res.status(200).send("Logged out successfully");
+  console.log("go");
+  res.clearCookie("access_token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    path: "/",
+  });
+  console.log("cookie cleared");
+  res.status(200).send({ message: "Logged out successfully" });
 });
 
 app.get("/protected", (req, res) => {
@@ -83,6 +103,11 @@ app.get("/protected", (req, res) => {
   res.render("protected", { username: user.username });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+const options = {
+  key: fs.readFileSync("../../localhost-key.pem"),
+  cert: fs.readFileSync("../../localhost.pem"),
+};
+
+https.createServer(options, app).listen(PORT, () => {
+  console.log("🚀 Secure Backend running on https://localhost:3000");
 });
